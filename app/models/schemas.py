@@ -180,3 +180,32 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     features: list[str]
+
+
+# --- Run & Compare models ---
+
+
+class RunCompareRequest(BaseModel):
+    timeout_seconds: int = 30
+    stdin_input: str | None = None
+
+
+class ExecutionResult(BaseModel):
+    exit_code: int | None
+    stdout: str
+    stderr: str
+    execution_time_ms: float
+    timed_out: bool
+    truncated: bool
+
+
+class RunCompareResponse(BaseModel):
+    project_id: str
+    file_path: str
+    py2: ExecutionResult
+    py3: ExecutionResult
+    outputs_match: bool
+    exit_codes_match: bool
+    diff_lines: list[str]
+    similarity_pct: float
+    warnings: list[str]
