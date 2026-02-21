@@ -6,12 +6,14 @@ import { TransformationPage } from "@/pages/TransformationPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { BatchMigrationPage } from "@/pages/BatchMigrationPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { LandingPage } from "@/pages/LandingPage";
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route element={<AppLayout />}>
-        <Route path="/" element={<ProjectsPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
         <Route
           path="/projects/:id/transform/*"
