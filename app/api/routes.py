@@ -14,6 +14,8 @@ from app.models.schemas import (
     MigrateBatchRequest,
     ProjectCreate,
     ProjectResponse,
+    RunCompareRequest,
+    RunCompareResponse,
 )
 from app.services.project_manager import (
     analyze_project,
@@ -27,6 +29,7 @@ from app.services.project_manager import (
     get_transformations,
     list_files,
     list_projects,
+    run_and_compare,
     save_file,
     transform_file,
 )
@@ -47,6 +50,7 @@ async def health():
             "behavioral_snapshot_tests",
             "incremental_migration_planning",
             "migration_dashboard",
+            "run_and_compare",
         ],
     )
 
@@ -185,6 +189,30 @@ async def transform_batch(project_id: str, req: MigrateBatchRequest | None = Non
     }
 
 
+# ── Run & Compare ─────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/projects/{project_id}/run-compare/{file_path:path}",
+    response_model=RunCompareResponse,
+)
+async def run_and_compare_endpoint(
+    project_id: str,
+    file_path: str,
+    body: RunCompareRequest = RunCompareRequest(),
+) -> RunCompareResponse:
+    """Execute original and migrated files side-by-side and compare outputs."""
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    try:
+        return await run_and_compare(project_id, file_path, body)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 # ── Dashboard ────────────────────────────────────────────────────────────
 
 
@@ -255,6 +283,22 @@ async def get_project_file_content(
         return get_file_content(project_id, file_path, version)
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+
+# ── Slack Report ─────────────────────────────────────────────────────────
+
+
+@router.post("/projects/{project_id}/report-slack")
+async def send_slack_report(project_id: str, webhook_url: str | None = Query(None)):
+    """Send migration report to Slack via webhook."""
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    try:
+        from app.services.slack_reporter import send_report
+        return send_report(project_id, webhook_url)
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @router.delete("/projects/{project_id}")
