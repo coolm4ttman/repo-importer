@@ -5,18 +5,20 @@ import {
   FileCode,
   BarChart3,
   Zap,
+  Sparkles,
   ChevronLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { label: "All Projects", icon: FolderOpen, path: "/" },
+  { label: "All Projects", icon: FolderOpen, path: "/projects" },
 ];
 
 const PROJECT_NAV = [
   { label: "Overview", icon: FileCode, path: "" },
   { label: "Dashboard", icon: BarChart3, path: "/dashboard" },
   { label: "Batch Migration", icon: Zap, path: "/batch" },
+  { label: "AI Assistant", icon: Sparkles, path: "/assistant" },
 ];
 
 export function AppLayout() {
@@ -36,10 +38,8 @@ export function AppLayout() {
       <aside className="w-60 shrink-0 border-r border-border bg-card flex flex-col">
         {/* Logo */}
         <div className="h-16 flex items-center gap-2 px-5 border-b border-border">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-bold text-lg tracking-tight">CodeShift AI</span>
+          <img src="/reforge-logo.png" alt="Reforge" className="w-8 h-8 object-contain" />
+          <span className="font-bold text-lg" style={{ fontFamily: "'Crimson Text', serif" }}>Reforge AI</span>
         </div>
 
         {/* Navigation */}
@@ -68,7 +68,7 @@ export function AppLayout() {
               <div className="h-px bg-border my-3" />
               <div className="px-3 mb-2">
                 <Link
-                  to="/"
+                  to="/projects"
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ChevronLeft className="w-3 h-3" />

@@ -51,18 +51,12 @@ const STATUS_BORDER: Record<string, string> = {
 
 const SOURCE_LANGUAGES = [
   { value: "python2", label: "Python 2" },
-  { value: "python3", label: "Python 3" },
   { value: "java8", label: "Java 8" },
-  { value: "javascript", label: "JavaScript (ES5)" },
-  { value: "cobol", label: "COBOL" },
 ];
 
 const TARGET_LANGUAGES = [
   { value: "python3", label: "Python 3" },
   { value: "java17", label: "Java 17" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "javascript_es6", label: "JavaScript (ES6+)" },
-  { value: "java21", label: "Java 21" },
 ];
 
 /* ---------- Language display map ---------- */
@@ -72,11 +66,6 @@ const LANG_DISPLAY: Record<string, string> = {
   python3: "Python 3",
   java8: "Java 8",
   java17: "Java 17",
-  java21: "Java 21",
-  javascript: "JavaScript (ES5)",
-  javascript_es6: "JavaScript (ES6+)",
-  typescript: "TypeScript",
-  cobol: "COBOL",
 };
 
 function langLabel(value: string): string {
@@ -98,8 +87,8 @@ function StatCard({
 
   return (
     <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-5">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
-        <Icon className="h-5 w-5 text-indigo-400" />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#36B7FC]/10">
+        <Icon className="h-5 w-5 text-[#36B7FC]" />
       </div>
       <div>
         <p className="text-2xl font-bold font-mono tabular-nums">
@@ -125,21 +114,20 @@ function ProjectCard({ project }: { project: ProjectResponse }) {
       type="button"
       onClick={() => navigate(`/projects/${project.id}`)}
       className={cn(
-        "group relative flex flex-col gap-4 rounded-xl border border-border border-l-4 bg-card p-5 text-left",
+        "group relative flex flex-col gap-4 rounded-xl border border-border bg-card p-5 text-left",
         "transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-black/20 hover:border-border/80",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        STATUS_BORDER[project.status] ?? "border-l-gray-500",
       )}
     >
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {/* Language badge */}
-          <span className="mb-2 inline-block rounded-md bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-400 font-mono">
+          <span className="mb-2 inline-block rounded-md bg-[#36B7FC]/10 px-2 py-0.5 text-xs font-medium text-[#36B7FC] font-mono">
             {langLabel(project.source_language)} &rarr;{" "}
             {langLabel(project.target_language)}
           </span>
-          <h3 className="truncate text-base font-semibold text-foreground group-hover:text-indigo-400 transition-colors">
+          <h3 className="truncate text-base font-semibold text-foreground group-hover:text-[#36B7FC] transition-colors">
             {project.name}
           </h3>
           {project.description && (
@@ -187,7 +175,7 @@ function ProjectCard({ project }: { project: ProjectResponse }) {
             year: "numeric",
           })}
         </span>
-        <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 text-indigo-400">
+        <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 text-[#36B7FC]">
           Open project <ArrowRight className="h-3 w-3" />
         </span>
       </div>
@@ -205,7 +193,7 @@ function CreateProjectGhostCard({ onClick }: { onClick: () => void }) {
       className={cn(
         "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border/60 p-8",
         "text-muted-foreground transition-all duration-200",
-        "hover:border-indigo-500/50 hover:text-indigo-400 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-black/20",
+        "hover:border-[#36B7FC]/50 hover:text-[#36B7FC] hover:translate-y-[-2px] hover:shadow-lg hover:shadow-black/20",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "min-h-[200px]",
       )}

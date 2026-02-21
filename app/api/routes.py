@@ -16,6 +16,7 @@ from app.models.schemas import (
     ProjectResponse,
     RunCompareRequest,
     RunCompareResponse,
+    RunFileResponse,
 )
 from app.services.project_manager import (
     analyze_project,
@@ -30,6 +31,7 @@ from app.services.project_manager import (
     list_files,
     list_projects,
     run_and_compare,
+    run_file,
     save_file,
     transform_file,
 )
@@ -87,9 +89,16 @@ async def upload_files(project_id: str, files: list[UploadFile] = File(...)):
 
     results = []
     for file in files:
-        # FIX 8: Validate file type
-        if not file.filename or not file.filename.endswith('.py'):
-            raise HTTPException(400, f"Only .py files are supported, got: {file.filename}")
+        # FIX 8: Validate file type based on project source language
+        lang = getattr(project, "source_language", "python2")
+        allowed_ext = {
+            "python2": (".py", ".pyw"),
+            "python3": (".py", ".pyw"),
+            "java8": (".java",),
+        }
+        exts = allowed_ext.get(lang, (".py",))
+        if not file.filename or not file.filename.endswith(exts):
+            raise HTTPException(400, f"Only {', '.join(exts)} files are supported for {lang}, got: {file.filename}")
 
         content = await file.read()
 
@@ -187,6 +196,30 @@ async def transform_batch(project_id: str, req: MigrateBatchRequest | None = Non
         "processed": len(results),
         "results": results,
     }
+
+
+# ── Run File ──────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/projects/{project_id}/run/{file_path:path}",
+    response_model=RunFileResponse,
+)
+async def run_file_endpoint(
+    project_id: str,
+    file_path: str,
+    body: RunCompareRequest = RunCompareRequest(),
+) -> RunFileResponse:
+    """Execute the migrated Python 3 file and return its output."""
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    try:
+        return await run_file(project_id, file_path, body)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 # ── Run & Compare ─────────────────────────────────────────────────────────

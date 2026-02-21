@@ -144,10 +144,9 @@ export interface HealthResponse {
 }
 
 export interface FileInfo {
-  filename: string;
+  file_path: string;
   lines: number;
-  size_bytes: number;
-  status: string;
+  migrated: boolean;
 }
 
 export interface BatchResult {
@@ -157,4 +156,32 @@ export interface BatchResult {
   overall_confidence?: number;
   overall_tier?: string;
   error?: string;
+}
+
+export interface ExecutionResult {
+  exit_code: number | null;
+  stdout: string;
+  stderr: string;
+  execution_time_ms: number;
+  timed_out: boolean;
+  truncated: boolean;
+}
+
+export interface RunFileResponse {
+  project_id: string;
+  file_path: string;
+  result: ExecutionResult;
+  warnings: string[];
+}
+
+export interface RunCompareResponse {
+  project_id: string;
+  file_path: string;
+  py2: ExecutionResult;
+  py3: ExecutionResult;
+  outputs_match: boolean;
+  exit_codes_match: boolean;
+  diff_lines: string[];
+  similarity_pct: number;
+  warnings: string[];
 }

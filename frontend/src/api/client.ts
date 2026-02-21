@@ -1,4 +1,4 @@
-/** API client for CodeShift AI backend. */
+/** API client for Reforge AI backend. */
 
 import type {
   AnalysisResponse,
@@ -8,6 +8,8 @@ import type {
   FileTransformationResponse,
   ProjectCreate,
   ProjectResponse,
+  RunCompareResponse,
+  RunFileResponse,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -99,6 +101,33 @@ export const api = {
   getFileDiff: (projectId: string, filePath: string) =>
     request<{ file_path: string; diff: string; transformations_applied: number }>(
       `/projects/${projectId}/diff/${filePath}`,
+    ),
+
+  // Slack Report
+  sendSlackReport: (projectId: string, webhookUrl?: string) =>
+    request<{ status: string; project_name?: string; error?: string }>(
+      `/projects/${projectId}/report-slack${webhookUrl ? `?webhook_url=${encodeURIComponent(webhookUrl)}` : ""}`,
+      { method: "POST" },
+    ),
+
+  // Run (migrated code only)
+  runFile: (projectId: string, filePath: string, options?: {
+    timeout_seconds?: number;
+    stdin_input?: string;
+  }) =>
+    request<RunFileResponse>(
+      `/projects/${projectId}/run/${filePath}`,
+      { method: "POST", body: JSON.stringify(options ?? {}) }
+    ),
+
+  // Run & Compare
+  runAndCompare: (projectId: string, filePath: string, options?: {
+    timeout_seconds?: number;
+    stdin_input?: string;
+  }) =>
+    request<RunCompareResponse>(
+      `/projects/${projectId}/run-compare/${filePath}`,
+      { method: "POST", body: JSON.stringify(options ?? {}) }
     ),
 
   // Export

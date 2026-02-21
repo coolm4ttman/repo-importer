@@ -5,6 +5,8 @@ import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { TransformationPage } from "@/pages/TransformationPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { BatchMigrationPage } from "@/pages/BatchMigrationPage";
+import { RunComparePage } from "@/pages/RunComparePage";
+import { AIAssistantPage } from "@/pages/AIAssistantPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { LandingPage } from "@/pages/LandingPage";
 
@@ -19,8 +21,13 @@ export default function App() {
           path="/projects/:id/transform/*"
           element={<TransformationPage />}
         />
+        <Route
+          path="/projects/:id/run-compare/*"
+          element={<RunComparePage />}
+        />
         <Route path="/projects/:id/dashboard" element={<DashboardPage />} />
         <Route path="/projects/:id/batch" element={<BatchMigrationPage />} />
+        <Route path="/projects/:id/assistant" element={<AIAssistantPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

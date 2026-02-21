@@ -315,7 +315,7 @@ export function BatchMigrationPage() {
             <Button
               onClick={startMigration}
               disabled={queue.length === 0}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-[#2DA1E0] hover:bg-[#2590C9]"
             >
               <Play className="size-4 mr-2" />
               {processedCount > 0 && processedCount < totalCount
@@ -386,7 +386,7 @@ export function BatchMigrationPage() {
           </div>
           <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-400 transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-[#36B7FC] to-[#36B7FC] transition-all duration-500 ease-out"
               style={{ width: `${progressPct}%` }}
             />
           </div>

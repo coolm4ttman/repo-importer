@@ -8,7 +8,7 @@ export function LandingPage() {
       {/* Nav */}
       <header className="w-full px-8 py-6 flex items-center justify-between">
         <span className="font-serif text-xl tracking-tight font-semibold">
-          CodeShift
+          Reforge
         </span>
         <Link to="/projects">
           <Button
@@ -29,7 +29,7 @@ export function LandingPage() {
           </h1>
 
           <p className="font-serif text-lg sm:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed">
-            CodeShift turns undocumented legacy complexity into structured system
+            Reforge turns undocumented legacy complexity into structured system
             intelligence — and intelligence into safe, staged modernisation.
           </p>
 

@@ -209,3 +209,10 @@ class RunCompareResponse(BaseModel):
     diff_lines: list[str]
     similarity_pct: float
     warnings: list[str]
+
+
+class RunFileResponse(BaseModel):
+    project_id: str
+    file_path: str
+    result: ExecutionResult
+    warnings: list[str]

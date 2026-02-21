@@ -39,6 +39,7 @@ import {
   XCircle,
   Minus,
   Download,
+  Github,
 } from "lucide-react";
 
 /* -------------------------------------------------------------------------- */
@@ -637,13 +638,22 @@ function MigrationPlanTab({
 /*  File Upload Zone                                                          */
 /* -------------------------------------------------------------------------- */
 
+const LANG_FILE_CONFIG: Record<string, { extensions: string[]; accept: string; label: string }> = {
+  python2: { extensions: [".py", ".pyw"], accept: ".py,.pyw", label: "Python" },
+  python3: { extensions: [".py", ".pyw"], accept: ".py,.pyw", label: "Python" },
+  java8: { extensions: [".java"], accept: ".java", label: "Java" },
+};
+
 function FileUploadZone({
   projectId,
+  sourceLanguage,
   onUploadComplete,
 }: {
   projectId: string;
+  sourceLanguage: string;
   onUploadComplete: () => void;
 }) {
+  const langConfig = LANG_FILE_CONFIG[sourceLanguage] ?? LANG_FILE_CONFIG.python2;
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -660,11 +670,11 @@ function FileUploadZone({
   const handleFiles = useCallback(
     (fileList: FileList | null) => {
       if (!fileList || fileList.length === 0) return;
-      const pyFiles = Array.from(fileList).filter(
-        (f) => f.name.endsWith(".py") || f.name.endsWith(".pyw"),
+      const validFiles = Array.from(fileList).filter((f) =>
+        langConfig.extensions.some((ext) => f.name.endsWith(ext)),
       );
-      if (pyFiles.length === 0) return;
-      uploadMutation.mutate(pyFiles);
+      if (validFiles.length === 0) return;
+      uploadMutation.mutate(validFiles);
     },
     [uploadMutation],
   );
@@ -705,7 +715,7 @@ function FileUploadZone({
       className={cn(
         "relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-10 transition-all cursor-pointer",
         isDragging
-          ? "border-indigo-500 bg-indigo-500/5"
+          ? "border-[#36B7FC] bg-[#36B7FC]/5"
           : "border-border hover:border-muted-foreground/50 hover:bg-accent/20",
         uploadMutation.isPending && "pointer-events-none opacity-60",
       )}
@@ -713,13 +723,13 @@ function FileUploadZone({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".py,.pyw"
+        accept={langConfig.accept}
         multiple
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
       {uploadMutation.isPending ? (
-        <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#36B7FC] animate-spin" />
       ) : (
         <Upload className="w-8 h-8 text-muted-foreground" />
       )}
@@ -727,9 +737,9 @@ function FileUploadZone({
         <p className="text-sm font-medium">
           {uploadMutation.isPending
             ? "Uploading files..."
-            : "Drag & drop Python files here, or click to browse"}
+            : `Drag & drop ${langConfig.label} files here, or click to browse`}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">Accepts .py files</p>
+        <p className="text-xs text-muted-foreground mt-1">Accepts {langConfig.accept} files</p>
       </div>
       {uploadMutation.isError && (
         <p className="text-xs text-red-400 mt-1">
@@ -772,18 +782,18 @@ function FileList({
       <div className="divide-y divide-border">
         {files.map((file, i) => (
           <div
-            key={`${file.filename}-${i}`}
+            key={`${file.file_path}-${i}`}
             className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/20 transition-colors group"
           >
             <FileCode className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="font-mono text-sm truncate flex-1">{file.filename}</span>
+            <span className="font-mono text-sm truncate flex-1">{file.file_path}</span>
             <span className="text-xs text-muted-foreground">{formatNumber(file.lines)} lines</span>
             <Button
               size="xs"
               variant="ghost"
               onClick={() =>
                 navigate(
-                  `/projects/${projectId}/transform/${encodeURIComponent(file.filename)}`,
+                  `/projects/${projectId}/transform/${encodeURIComponent(file.file_path)}`,
                 )
               }
               className="opacity-0 group-hover:opacity-100 transition-opacity gap-1"
@@ -830,12 +840,16 @@ export function ProjectDetailPage() {
     },
   });
 
-  // Cached analysis result
+  // Fetch analysis on load if project was previously analyzed
+  const isAnalyzed = projectQuery.data
+    ? ["ready", "in_progress", "completed"].includes(projectQuery.data.status)
+    : false;
+
   const analysisQuery = useQuery<AnalysisResponse>({
     queryKey: ["project-analysis", id],
     queryFn: () => api.analyzeProject(id!),
-    enabled: false, // only populated via mutation
-    staleTime: Infinity, // Never auto-expire from cache during session
+    enabled: isAnalyzed,
+    staleTime: Infinity,
   });
 
   // Delete project mutation
@@ -843,11 +857,13 @@ export function ProjectDetailPage() {
     mutationFn: () => api.deleteProject(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      navigate("/");
+      navigate("/projects");
     },
   });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [showGithubComingSoon, setShowGithubComingSoon] = useState(false);
 
   const handleExport = async () => {
     try {
@@ -887,7 +903,7 @@ export function ProjectDetailPage() {
         <p className="text-sm text-muted-foreground">
           Failed to load project: {projectQuery.error.message}
         </p>
-        <Button variant="outline" onClick={() => navigate("/")}>
+        <Button variant="outline" onClick={() => navigate("/projects")}>
           Back to Projects
         </Button>
       </div>
@@ -903,7 +919,7 @@ export function ProjectDetailPage() {
       {/* ------------------------------------------------------------------ */}
       <div className="flex items-center justify-between">
         <nav className="flex items-center gap-2 text-sm">
-          <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
+          <Link to="/projects" className="text-muted-foreground hover:text-foreground transition-colors">
             All Projects
           </Link>
           <span className="text-muted-foreground">/</span>
@@ -911,19 +927,6 @@ export function ProjectDetailPage() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!hasFiles || isAnalyzing}
-            onClick={() => analyzeMutation.mutate()}
-            className="gap-2"
-          >
-            {isAnalyzing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Shield className="w-4 h-4" />
-            )}
-            {isAnalyzing ? "Analyzing..." : "Analyze"}
-          </Button>
           <Button
             variant="outline"
             disabled={!analysis}
@@ -970,7 +973,7 @@ export function ProjectDetailPage() {
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/*  Project Info                                                      */}
+      {/*  Project Info + Summary dropdown                                   */}
       {/* ------------------------------------------------------------------ */}
       <Card className="py-4">
         <CardContent>
@@ -986,7 +989,7 @@ export function ProjectDetailPage() {
             <div className="flex items-center gap-3">
               <Badge
                 variant="outline"
-                className="border font-mono text-xs bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                className="border font-mono text-xs bg-[#36B7FC]/10 border-[#36B7FC]/30 text-[#36B7FC]"
               >
                 {project.source_language} &rarr; {project.target_language}
               </Badge>
@@ -995,11 +998,6 @@ export function ProjectDetailPage() {
           </div>
 
           <div className="flex items-center gap-6 mt-4 pt-4 border-t border-border text-sm">
-            <div className="flex items-center gap-2">
-              <FileCode className="w-4 h-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Files:</span>
-              <span className="font-medium">{formatNumber(project.file_count)}</span>
-            </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Lines:</span>
               <span className="font-medium">{formatNumber(project.total_lines)}</span>
@@ -1021,29 +1019,140 @@ export function ProjectDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Collapsible Summary dropdown */}
+          {hasFiles && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowSummary((v) => !v)}
+                className="flex w-full items-center gap-2 text-left hover:opacity-80 transition-opacity"
+              >
+                {showSummary ? (
+                  <ChevronDown className="w-4 h-4 text-white shrink-0" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-white shrink-0" />
+                )}
+                <FileCode className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Files:</span>
+                <span className="font-medium">{formatNumber(project.file_count)}</span>
+              </button>
+
+              {showSummary && (
+                <div className="mt-3 divide-y divide-border rounded-lg border border-border overflow-hidden">
+                  {files.map((file, i) => (
+                    <div
+                      key={`${file.file_path}-${i}`}
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/20 transition-colors group"
+                    >
+                      <FileCode className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="font-mono text-sm text-white truncate flex-1">
+                        {file.file_path}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatNumber(file.lines)} lines
+                      </span>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() =>
+                          navigate(
+                            `/projects/${id}/transform/${encodeURIComponent(file.file_path)}`,
+                          )
+                        }
+                        className="opacity-0 group-hover:opacity-100 transition-opacity gap-1"
+                      >
+                        Transform
+                        <ArrowRight className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* ------------------------------------------------------------------ */}
-      {/*  File Upload Zone                                                  */}
+      {/*  Analyze button (centered, shown when files exist but no analysis) */}
       {/* ------------------------------------------------------------------ */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Upload Files</h2>
-        <FileUploadZone
-          projectId={id!}
-          onUploadComplete={() => {
-            /* files query auto-invalidated */
-          }}
-        />
-        {filesQuery.isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading files...
+      {hasFiles && !analysis && !isAnalyzing && !analysisQuery.isLoading && (
+        <div className="flex justify-center">
+          <Button
+            size="lg"
+            disabled={isAnalyzing}
+            onClick={() => analyzeMutation.mutate()}
+            className="gap-2"
+          >
+            <Shield className="w-4 h-4" />
+            Analyze
+          </Button>
+        </div>
+      )}
+
+      {/* Analysis summary (outside the card, white text, same size as title) */}
+      {analysis?.summary && (
+        <div className="space-y-1">
+          <h2 className="text-sm font-medium text-muted-foreground">Summary</h2>
+          <p className="text-sm font-medium text-white">{analysis.summary}</p>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/*  File Upload Zone (hidden once files exist)                        */}
+      {/* ------------------------------------------------------------------ */}
+      {!hasFiles && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Upload Files</h2>
+          <FileUploadZone
+            projectId={id!}
+            sourceLanguage={project.source_language}
+            onUploadComplete={() => {
+              analyzeMutation.mutate();
+            }}
+          />
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
           </div>
-        ) : (
-          <FileList files={files} projectId={id!} />
-        )}
-      </section>
+          <button
+            type="button"
+            onClick={() => setShowGithubComingSoon(true)}
+            className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:border-[#36B7FC]/50 transition-colors"
+          >
+            <Github className="h-5 w-5" />
+            Import from GitHub
+          </button>
+          {showGithubComingSoon && (
+            <p className="text-xs text-[#36B7FC] text-center animate-in fade-in">
+              Coming soon — GitHub integration is on the roadmap!
+            </p>
+          )}
+          {filesQuery.isLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading files...
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/*  Analyzing indicator (shown while auto-scan runs after upload)     */}
+      {/* ------------------------------------------------------------------ */}
+      {isAnalyzing && !analysis && (
+        <Card className="py-6">
+          <CardContent className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-[#36B7FC]" />
+            <p className="text-sm font-medium">Analyzing your codebase...</p>
+            <p className="text-xs text-muted-foreground">
+              Running dead code detection, dependency analysis, and risk assessment
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/*  Analysis Error                                                    */}
@@ -1074,14 +1183,6 @@ export function ProjectDetailPage() {
               &middot; {analysis.dead_code_percentage.toFixed(1)}% dead code
             </p>
           </div>
-
-          {analysis.summary && (
-            <Card className="py-3">
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{analysis.summary}</p>
-              </CardContent>
-            </Card>
-          )}
 
           <Tabs defaultValue="dead-code">
             <TabsList variant="line" className="w-full justify-start border-b border-border">

@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { useCountUp } from "@/hooks/useCountUp";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import {
   cn,
@@ -35,7 +35,11 @@ import {
   FileCode,
   ChevronRight,
   AlertCircle,
+  Send,
+  Download,
 } from "lucide-react";
+import html2canvas from "html2canvas-pro";
+import { jsPDF } from "jspdf";
 import type {
   ConfidenceTier,
   RiskLevel,
@@ -141,6 +145,7 @@ function ChartTooltip({
 
 export function DashboardPage() {
   const { id } = useParams();
+  const dashboardRef = useRef<HTMLDivElement>(null);
 
   const {
     data: dashboard,
@@ -170,6 +175,64 @@ export function DashboardPage() {
     }
     return set;
   }, [dashboard?.recent_transformations]);
+
+  // PDF download
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+
+  async function handleDownloadPdf() {
+    if (!dashboardRef.current) return;
+    setPdfGenerating(true);
+    try {
+      const canvas = await html2canvas(dashboardRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#09090b",
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgRatio = canvas.width / canvas.height;
+      const pageRatio = pageWidth / pageHeight;
+      let imgW: number, imgH: number;
+      if (imgRatio > pageRatio) {
+        imgW = pageWidth;
+        imgH = pageWidth / imgRatio;
+      } else {
+        imgH = pageHeight;
+        imgW = pageHeight * imgRatio;
+      }
+      const x = (pageWidth - imgW) / 2;
+      const y = (pageHeight - imgH) / 2;
+      pdf.addImage(imgData, "PNG", x, y, imgW, imgH);
+      pdf.save(`migration-dashboard-${id}.pdf`);
+    } finally {
+      setPdfGenerating(false);
+    }
+  }
+
+  // Slack report
+  const [slackStatus, setSlackStatus] = useState<
+    | { type: "success"; message: string }
+    | { type: "error"; message: string }
+    | null
+  >(null);
+
+  const slackMutation = useMutation({
+    mutationFn: () =>
+      api.sendSlackReport(
+        id!,
+        "https://runtime.codewords.ai/webhook/pipedream/webhook/cmlw9n5ug000811h00l0bhnql/pipedream_trigger_recorder",
+      ),
+    onSuccess: () => {
+      setSlackStatus({ type: "success", message: "Report sent!" });
+      setTimeout(() => setSlackStatus(null), 3000);
+    },
+    onError: (err: Error) => {
+      setSlackStatus({ type: "error", message: err.message });
+      setTimeout(() => setSlackStatus(null), 5000);
+    },
+  });
 
   if (isLoading) {
     return (
@@ -230,7 +293,7 @@ export function DashboardPage() {
   const linesReduction = dashboard.total_lines - dashboard.lines_after_cleanup;
 
   return (
-    <div className="p-6 space-y-6">
+    <div ref={dashboardRef} className="p-6 space-y-6">
       {/* ---- Breadcrumb ---- */}
       <nav className="flex items-center gap-1 text-sm text-muted-foreground">
         <Link
@@ -247,9 +310,64 @@ export function DashboardPage() {
         <span className="text-foreground font-medium">Dashboard</span>
       </nav>
 
-      <h1 className="text-2xl font-bold tracking-tight">
-        Migration Dashboard
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">
+          Migration Dashboard
+        </h1>
+        <div className="flex items-center gap-3">
+          {slackStatus && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 text-sm font-medium",
+                slackStatus.type === "success"
+                  ? "text-green-400"
+                  : "text-red-400",
+              )}
+            >
+              {slackStatus.type === "success" ? (
+                <CheckCircle2 className="size-4" />
+              ) : (
+                <AlertCircle className="size-4" />
+              )}
+              {slackStatus.message}
+            </span>
+          )}
+          <button
+            onClick={handleDownloadPdf}
+            disabled={pdfGenerating}
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pdfGenerating ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="size-4" />
+                Download PDF
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => slackMutation.mutate()}
+            disabled={slackMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#2DA1E0] hover:bg-[#36B7FC] px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {slackMutation.isPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Send className="size-4" />
+                Send Report to Slack
+              </>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* ---- Top Metrics Row ---- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

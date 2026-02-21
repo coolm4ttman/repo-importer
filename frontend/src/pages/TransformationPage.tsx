@@ -10,21 +10,19 @@ import {
 import { TierBadge } from "@/components/shared/TierBadge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
   ChevronRight,
   Check,
   CheckCircle2,
   X,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   Zap,
-  Eye,
   FileCode,
   ArrowRight,
   AlertCircle,
+  Play,
 } from "lucide-react";
 import type {
   FileTransformationResponse,
@@ -298,9 +296,6 @@ function SnapshotTestsPanel({
   tests: FileTransformationResponse["snapshot_tests"];
   filePath: string;
 }) {
-  const [open, setOpen] = useState(false);
-  if (tests.length === 0) return null;
-
   const downloadTests = () => {
     const combined = tests.map((t) => t.test_code).join("\n\n\n");
     const baseName = filePath.replace(/\.py$/, "");
@@ -319,69 +314,58 @@ function SnapshotTestsPanel({
   };
 
   return (
-    <Card>
-      <CardHeader
-        className="cursor-pointer select-none"
-        onClick={() => setOpen(!open)}
-      >
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Eye className="size-4" />
-            Snapshot Tests ({tests.length})
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {open && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    copyAllTests();
-                  }}
-                >
-                  Copy All
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/10"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    downloadTests();
-                  }}
-                >
-                  Download .py
-                </Button>
-              </>
-            )}
-            {open ? (
-              <ChevronUp className="size-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="size-4 text-muted-foreground" />
-            )}
-          </div>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-semibold tracking-tight">
+          Snapshot Tests ({tests.length})
+        </h2>
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+            onClick={copyAllTests}
+          >
+            Copy All
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px] text-[#36B7FC] hover:text-[#6FCBFD]"
+            onClick={downloadTests}
+          >
+            Download .py
+          </Button>
         </div>
-      </CardHeader>
-      {open && (
-        <CardContent className="space-y-4 pt-0">
-          {tests.map((test, i) => (
-            <div key={i} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{test.test_name}</span>
-                <span className="text-xs text-muted-foreground">
+      </div>
+      <div className="space-y-3">
+        {tests.length === 0 ? (
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No snapshot tests generated.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          tests.map((test, i) => (
+            <Card key={i}>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium">{test.test_name}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
                   covers: {test.covers_functions.join(", ")}
-                </span>
-              </div>
-              <pre className="rounded-lg bg-[#0F1117] p-4 text-xs font-mono text-muted-foreground overflow-auto max-h-64">
-                {test.test_code}
-              </pre>
-            </div>
-          ))}
-        </CardContent>
-      )}
-    </Card>
+                </p>
+                <pre className="rounded-lg bg-[#0F1117] p-3 text-[11px] font-mono text-muted-foreground overflow-auto max-h-56 leading-relaxed">
+                  {test.test_code}
+                </pre>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -436,6 +420,11 @@ export function TransformationPage() {
       queryClient.invalidateQueries({ queryKey: ["file-content", id, filePath, "migrated"] });
       queryClient.invalidateQueries({ queryKey: ["file-diff", id, filePath] });
     },
+  });
+
+  // Run migrated file
+  const runFileMutation = useMutation({
+    mutationFn: () => api.runFile(id, filePath),
   });
 
   // Fetch original content immediately
@@ -616,6 +605,20 @@ export function TransformationPage() {
             >
               Unified Diff
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-[#36B7FC] border-[#36B7FC]/30 hover:bg-[#36B7FC]/10"
+              onClick={() => runFileMutation.mutate()}
+              disabled={runFileMutation.isPending}
+            >
+              {runFileMutation.isPending ? (
+                <Loader2 className="size-3 mr-1 animate-spin" />
+              ) : (
+                <Play className="size-3 mr-1" />
+              )}
+              Run
+            </Button>
             <Separator orientation="vertical" className="h-5" />
             <Button
               size="sm"
@@ -658,7 +661,7 @@ export function TransformationPage() {
                   : "Unknown error"}
               </p>
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700"
+                className="bg-[#2DA1E0] hover:bg-[#2590C9]"
                 onClick={() => transformMutation.mutate()}
               >
                 <Zap className="size-4 mr-2" />
@@ -671,7 +674,7 @@ export function TransformationPage() {
                 Click Transform to begin analyzing and transforming this file.
               </p>
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700"
+                className="bg-[#2DA1E0] hover:bg-[#2590C9]"
                 onClick={() => transformMutation.mutate()}
               >
                 <Zap className="size-4 mr-2" />
@@ -791,6 +794,91 @@ export function TransformationPage() {
         </div>
       )}
 
+      {/* ---- Run Output Panel ---- */}
+      {(runFileMutation.data || runFileMutation.isError) && (
+        <div className="rounded-xl border border-border overflow-hidden bg-card">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
+            <div className="flex items-center gap-2">
+              <Play className="size-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">
+                Execution Output
+              </span>
+              {runFileMutation.data && (
+                <>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px]",
+                      runFileMutation.data.result.exit_code === 0
+                        ? "text-green-400 border-green-500/30"
+                        : "text-red-400 border-red-500/30",
+                    )}
+                  >
+                    exit {runFileMutation.data.result.exit_code ?? "?"}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {runFileMutation.data.result.execution_time_ms.toFixed(0)}ms
+                  </span>
+                  {runFileMutation.data.result.timed_out && (
+                    <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30">
+                      timed out
+                    </Badge>
+                  )}
+                </>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => runFileMutation.reset()}
+            >
+              <X className="size-3" />
+            </Button>
+          </div>
+          {runFileMutation.isError ? (
+            <div className="p-4">
+              <p className="text-sm text-red-400">
+                {runFileMutation.error instanceof Error
+                  ? runFileMutation.error.message
+                  : "Execution failed"}
+              </p>
+            </div>
+          ) : runFileMutation.data ? (
+            <div className="space-y-0">
+              {runFileMutation.data.warnings.length > 0 && (
+                <div className="px-4 py-2 border-b border-border bg-amber-500/5">
+                  {runFileMutation.data.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-amber-400">{w}</p>
+                  ))}
+                </div>
+              )}
+              {runFileMutation.data.result.stdout && (
+                <div className="p-4">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-2">stdout</p>
+                  <pre className="rounded-lg bg-[#0F1117] p-3 text-sm font-mono text-foreground overflow-auto max-h-64 whitespace-pre-wrap">
+                    {runFileMutation.data.result.stdout}
+                  </pre>
+                </div>
+              )}
+              {runFileMutation.data.result.stderr && (
+                <div className="px-4 pb-4">
+                  <p className="text-[10px] uppercase tracking-wider text-red-400/60 mb-2">stderr</p>
+                  <pre className="rounded-lg bg-[#0F1117] p-3 text-sm font-mono text-red-300/80 overflow-auto max-h-48 whitespace-pre-wrap">
+                    {runFileMutation.data.result.stderr}
+                  </pre>
+                </div>
+              )}
+              {!runFileMutation.data.result.stdout && !runFileMutation.data.result.stderr && (
+                <div className="p-4">
+                  <p className="text-sm text-muted-foreground">No output produced.</p>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+
       {/* ---- All-approved banner ---- */}
       {transformations.length > 0 && approvedCount === transformations.length && (
         <div className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
@@ -801,36 +889,37 @@ export function TransformationPage() {
         </div>
       )}
 
-      {/* ---- Transformation List (only after transform) ---- */}
+      {/* ---- Transformations + Snapshot Tests (even split) ---- */}
       {transformData && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight">
-            Transformations ({transformations.length})
-            {approvedCount > 0 && (
-              <span className="ml-2 text-sm font-normal text-green-400">
-                {approvedCount}/{transformations.length} approved
-              </span>
-            )}
-          </h2>
-          <div className="grid gap-3">
-            {transformations.map((t) => (
-              <TransformationCard
-                key={t.id}
-                transformation={t}
-                status={decisions[t.id] ?? "pending"}
-                isActive={activeTransformation === t.id}
-                onApprove={() => setDecision(t.id, "approved")}
-                onReject={() => setDecision(t.id, "rejected")}
-                onClick={() => setActiveTransformation(t.id)}
-              />
-            ))}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {/* Left: Transformation cards */}
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold tracking-tight">
+              Transformations ({transformations.length})
+              {approvedCount > 0 && (
+                <span className="ml-2 text-sm font-normal text-green-400">
+                  {approvedCount}/{transformations.length} approved
+                </span>
+              )}
+            </h2>
+            <div className="space-y-3">
+              {transformations.map((t) => (
+                <TransformationCard
+                  key={t.id}
+                  transformation={t}
+                  status={decisions[t.id] ?? "pending"}
+                  isActive={activeTransformation === t.id}
+                  onApprove={() => setDecision(t.id, "approved")}
+                  onReject={() => setDecision(t.id, "rejected")}
+                  onClick={() => setActiveTransformation(t.id)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* ---- Snapshot Tests ---- */}
-      {transformData && (
-        <SnapshotTestsPanel tests={transformData.snapshot_tests} filePath={filePath} />
+          {/* Right: Snapshot Tests */}
+          <SnapshotTestsPanel tests={transformData.snapshot_tests} filePath={filePath} />
+        </div>
       )}
     </div>
   );

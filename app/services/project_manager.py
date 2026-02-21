@@ -370,6 +370,64 @@ def get_transformations(project_id: str, file_path: str) -> FileTransformationRe
     )
 
 
+async def run_file(
+    project_id: str,
+    file_path: str,
+    request: RunCompareRequest,
+) -> "RunFileResponse":
+    """Execute just the migrated (Python 3) file and return its output."""
+    from app.models.schemas import RunFileResponse
+
+    project = _projects.get(project_id)
+    if not project:
+        raise ValueError(f"Project {project_id} not found")
+
+    migrated_file = _safe_path(project_id, "migrated", file_path)
+    if not os.path.exists(migrated_file):
+        raise ValueError(
+            f"File {file_path} has not been transformed yet. "
+            "Run transformation before executing."
+        )
+
+    if not await check_interpreter(settings.python3_path):
+        raise ValueError(
+            f"Python 3 interpreter not found at '{settings.python3_path}'. "
+            "Install Python 3 or set PYTHON3_PATH environment variable."
+        )
+
+    with open(migrated_file) as f:
+        source_code = f.read()
+    warnings = scan_pre_run_warnings(source_code)
+
+    migrated_dir = os.path.join(_project_dir(project_id), "migrated")
+
+    temp = tempfile.TemporaryDirectory()
+    try:
+        work_dir = os.path.join(temp.name, "workspace")
+        shutil.copytree(migrated_dir, work_dir)
+
+        script = Path(work_dir) / file_path
+        timeout = request.timeout_seconds or settings.code_execution_timeout
+
+        result = await execute_python(
+            code_path=script,
+            interpreter=settings.python3_path,
+            timeout=timeout,
+            memory_mb=settings.code_execution_memory_mb,
+            stdin_input=request.stdin_input,
+            max_output=settings.max_output_bytes,
+        )
+    finally:
+        temp.cleanup()
+
+    return RunFileResponse(
+        project_id=project_id,
+        file_path=file_path,
+        result=result,
+        warnings=warnings,
+    )
+
+
 async def run_and_compare(
     project_id: str,
     file_path: str,

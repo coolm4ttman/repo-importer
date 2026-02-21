@@ -21,3 +21,4 @@ frontend/dist/
 
 # Project uploads
 /tmp/codeshift_projects/
+sample_legacy/
