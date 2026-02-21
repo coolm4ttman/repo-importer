@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project: CodeShift AI
+## Project: Reforge AI
 
-AI-powered legacy code migration platform (Python 2 → Python 3). Differentiates from existing tools (Grit.io, OpenRewrite, AWS Q Transform) by covering the **full migration lifecycle**: pre-migration intelligence → confidence-tiered transformations → behavioral snapshot tests → incremental migration planning → dashboard.
+AI-powered legacy code migration platform (Python 2 → Python 3, Java 8 → Java 17). Covers the **full migration lifecycle**: pre-migration intelligence → confidence-tiered transformations → behavioral snapshot tests → incremental migration planning → dashboard.
 
 ## Build & Run
 
