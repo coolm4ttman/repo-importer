@@ -1,58 +1,63 @@
-import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { WebGLShader } from "@/components/ui/web-gl-shader";
+import { LiquidButton } from "@/components/ui/liquid-glass-button";
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="relative min-h-screen bg-black overflow-hidden">
+      {/* Full-screen WebGL background */}
+      <WebGLShader />
+
       {/* Nav */}
-      <header className="w-full px-8 py-6 flex items-center justify-between">
-        <span className="font-serif text-xl tracking-tight font-semibold">
-          Reforge
-        </span>
-        <Link to="/projects">
-          <Button
-            variant="ghost"
-            className="text-white/60 hover:text-white hover:bg-white/10 font-serif"
-          >
-            Open App
-          </Button>
-        </Link>
+      <header className="relative z-10 flex items-center justify-between px-8 py-5 border-b border-white/10">
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/reforge-logo.png"
+            alt="Reforge logo"
+            className="h-8 w-8 object-contain"
+          />
+          <span className="text-white font-sans font-medium text-lg tracking-tight">
+            Reforge
+          </span>
+        </div>
+        <div className="flex items-center gap-5">
+          <button className="text-white/70 hover:text-white text-sm font-sans transition-colors">
+            Log in
+          </button>
+          <Link to="/projects">
+            <button className="bg-white text-black text-sm font-sans font-medium px-5 py-2 rounded-full hover:bg-white/90 transition-colors">
+              Sign up
+            </button>
+          </Link>
+        </div>
       </header>
 
       {/* Hero */}
-      <main className="flex-1 flex items-center justify-center px-6">
-        <div className="max-w-3xl text-center space-y-8">
-          <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.1] tracking-tight">
-            Untangle Legacy Systems.{" "}
-            <span className="text-white/50">Transform with Confidence.</span>
-          </h1>
+      <main className="relative z-10 flex flex-col items-center justify-center text-center px-6 pt-28 pb-16">
+        <h1
+          className="text-white text-5xl sm:text-6xl lg:text-7xl font-normal leading-[1.12] max-w-4xl"
+          style={{ fontFamily: "'Crimson Text', Georgia, serif" }}
+        >
+          Untangle Legacy Systems.{" "}
+          Modernise with Confidence.
+        </h1>
 
-          <p className="font-serif text-lg sm:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed">
-            Reforge turns undocumented legacy complexity into structured system
-            intelligence — and intelligence into safe, staged modernisation.
-          </p>
+        <p className="mt-7 text-white/50 text-base sm:text-lg font-sans max-w-xl leading-relaxed">
+          Reforge turns undocumented legacy complexity into structured system
+          intelligence and intelligence into safe, staged modernisation.
+        </p>
 
-          <div className="pt-4">
-            <Link to="/projects">
-              <Button
-                size="lg"
-                className="bg-white text-black hover:bg-white/90 font-serif text-base px-8 py-6 rounded-full gap-3"
-              >
-                Analyse Your System
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
-          </div>
+        <div className="mt-10">
+          <Link to="/projects">
+            <LiquidButton
+              className="bg-white text-black border-0 rounded-full font-sans font-medium hover:bg-white/90"
+              size="xl"
+            >
+              Get Started
+            </LiquidButton>
+          </Link>
         </div>
       </main>
-
-      {/* Subtle footer line */}
-      <footer className="px-8 py-6 text-center">
-        <p className="text-white/20 text-sm font-serif">
-          Legacy modernisation, reimagined.
-        </p>
-      </footer>
     </div>
   );
 }
