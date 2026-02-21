@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
+    "build:dev": "vite build --mode development"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.0",
