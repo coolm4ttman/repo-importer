@@ -12,9 +12,11 @@ import io
 import json
 import os
 import shutil
+import tempfile
 import uuid
 import zipfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app.core.config import settings
 from app.models.schemas import (
@@ -26,8 +28,12 @@ from app.models.schemas import (
     MigrationStatus,
     ProjectResponse,
     RiskLevel,
+    RunCompareRequest,
+    RunCompareResponse,
     Transformation,
 )
+from app.services.code_executor import check_interpreter, execute_python
+from app.services.output_comparator import compare_outputs, scan_pre_run_warnings
 from app.services.analyzers.dead_code import detect_dead_code
 from app.services.analyzers.dependency_graph import build_dependency_graph, get_migration_order
 from app.services.analyzers.risk_assessor import assess_risks
@@ -361,6 +367,104 @@ def get_transformations(project_id: str, file_path: str) -> FileTransformationRe
         overall_tier=_overall_tier(all_transforms),
         original_lines=orig_lines,
         transformed_lines=mig_lines,
+    )
+
+
+async def run_and_compare(
+    project_id: str,
+    file_path: str,
+    request: RunCompareRequest,
+) -> RunCompareResponse:
+    """Execute original (Python 2) and migrated (Python 3) files and compare outputs."""
+    project = _projects.get(project_id)
+    if not project:
+        raise ValueError(f"Project {project_id} not found")
+
+    # Validate source file exists
+    source_file = _safe_path(project_id, "source", file_path)
+    if not os.path.exists(source_file):
+        raise ValueError(f"Source file {file_path} not found in project")
+
+    # Validate file has been migrated
+    migrated_file = _safe_path(project_id, "migrated", file_path)
+    if not os.path.exists(migrated_file):
+        raise ValueError(
+            f"File {file_path} has not been transformed yet. "
+            "Run transformation before comparing outputs."
+        )
+
+    # Check interpreter availability
+    if not await check_interpreter(settings.python2_path):
+        raise ValueError(
+            f"Python 2 interpreter not found at '{settings.python2_path}'. "
+            "Install Python 2 or set PYTHON2_PATH environment variable."
+        )
+    if not await check_interpreter(settings.python3_path):
+        raise ValueError(
+            f"Python 3 interpreter not found at '{settings.python3_path}'. "
+            "Install Python 3 or set PYTHON3_PATH environment variable."
+        )
+
+    # Read source code for pre-run static warnings
+    with open(source_file) as f:
+        source_code = f.read()
+    warnings = scan_pre_run_warnings(source_code)
+
+    # Resolve full source and migrated directories
+    source_dir = os.path.join(_project_dir(project_id), "source")
+    migrated_dir = os.path.join(_project_dir(project_id), "migrated")
+
+    # Execute both versions in isolated temp directories
+    temp_py2 = tempfile.TemporaryDirectory()
+    temp_py3 = tempfile.TemporaryDirectory()
+    try:
+        # Copy full directories so inter-file imports work
+        py2_work_dir = os.path.join(temp_py2.name, "workspace")
+        py3_work_dir = os.path.join(temp_py3.name, "workspace")
+        shutil.copytree(source_dir, py2_work_dir)
+        shutil.copytree(migrated_dir, py3_work_dir)
+
+        py2_script = Path(py2_work_dir) / file_path
+        py3_script = Path(py3_work_dir) / file_path
+
+        timeout = request.timeout_seconds or settings.code_execution_timeout
+
+        # Run both interpreters in parallel
+        py2_result, py3_result = await asyncio.gather(
+            execute_python(
+                code_path=py2_script,
+                interpreter=settings.python2_path,
+                timeout=timeout,
+                memory_mb=settings.code_execution_memory_mb,
+                stdin_input=request.stdin_input,
+                max_output=settings.max_output_bytes,
+            ),
+            execute_python(
+                code_path=py3_script,
+                interpreter=settings.python3_path,
+                timeout=timeout,
+                memory_mb=settings.code_execution_memory_mb,
+                stdin_input=request.stdin_input,
+                max_output=settings.max_output_bytes,
+            ),
+        )
+    finally:
+        temp_py2.cleanup()
+        temp_py3.cleanup()
+
+    # Compare outputs
+    comparison = compare_outputs(py2_result, py3_result)
+
+    return RunCompareResponse(
+        project_id=project_id,
+        file_path=file_path,
+        py2=py2_result,
+        py3=py3_result,
+        outputs_match=comparison["outputs_match"],
+        exit_codes_match=comparison["exit_codes_match"],
+        diff_lines=comparison["diff_lines"],
+        similarity_pct=comparison["similarity_pct"],
+        warnings=warnings + comparison.get("warnings", []),
     )
 
 
