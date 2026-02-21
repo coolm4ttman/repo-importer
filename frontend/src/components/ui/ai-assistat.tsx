@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Sparkles, X, Loader2, Plus, MessageSquare, Trash2 } from "lucide-react";
+import { Send, Sparkles, Loader2, Plus, MessageSquare, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface AIMessageBarProps {

@@ -36,17 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/* ---------- Status border colors ---------- */
-
-const STATUS_BORDER: Record<string, string> = {
-  pending: "border-l-gray-500",
-  analyzing: "border-l-blue-400",
-  ready: "border-l-green-400",
-  in_progress: "border-l-amber-400",
-  completed: "border-l-emerald-500",
-  failed: "border-l-red-500",
-};
-
 /* ---------- Language options ---------- */
 
 const SOURCE_LANGUAGES = [

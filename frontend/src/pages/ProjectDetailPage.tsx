@@ -758,57 +758,6 @@ function FileUploadZone({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  File List                                                                 */
-/* -------------------------------------------------------------------------- */
-
-function FileList({
-  files,
-  projectId,
-}: {
-  files: FileInfo[];
-  projectId: string;
-}) {
-  const navigate = useNavigate();
-
-  if (files.length === 0) return null;
-
-  return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="px-4 py-2.5 bg-muted/30 border-b border-border">
-        <span className="text-xs font-medium text-muted-foreground">
-          {files.length} file{files.length !== 1 && "s"} uploaded
-        </span>
-      </div>
-      <div className="divide-y divide-border">
-        {files.map((file, i) => (
-          <div
-            key={`${file.file_path}-${i}`}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/20 transition-colors group"
-          >
-            <FileCode className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="font-mono text-sm truncate flex-1">{file.file_path}</span>
-            <span className="text-xs text-muted-foreground">{formatNumber(file.lines)} lines</span>
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() =>
-                navigate(
-                  `/projects/${projectId}/transform/${encodeURIComponent(file.file_path)}`,
-                )
-              }
-              className="opacity-0 group-hover:opacity-100 transition-opacity gap-1"
-            >
-              Transform
-              <ArrowRight className="w-3 h-3" />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
 /*  Main Page Component                                                       */
 /* -------------------------------------------------------------------------- */
 
