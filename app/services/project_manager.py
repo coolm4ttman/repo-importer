@@ -35,12 +35,69 @@ from app.services.test_generator import generate_llm_snapshot_tests, generate_sn
 from app.services.transformer import apply_deterministic_rules, apply_llm_transformations
 
 
-# In-memory store (swap for DB in production)
+# In-memory store with disk persistence (survives --reload restarts)
 _projects: dict[str, dict] = {}
 
 
 def _project_dir(project_id: str) -> str:
     return os.path.join(settings.upload_dir, project_id)
+
+
+def _state_path(project_id: str) -> str:
+    return os.path.join(_project_dir(project_id), "state.json")
+
+
+def _save_state(project_id: str) -> None:
+    """Persist project metadata to disk."""
+    project = _projects.get(project_id)
+    if not project:
+        return
+    state = {
+        "id": project["id"],
+        "name": project["name"],
+        "description": project["description"],
+        "source_language": project["source_language"],
+        "target_language": project["target_language"],
+        "status": project["status"].value if hasattr(project["status"], "value") else project["status"],
+        "created_at": project["created_at"].isoformat() if hasattr(project["created_at"], "isoformat") else project["created_at"],
+        "files": project["files"],
+    }
+    try:
+        with open(_state_path(project_id), "w") as f:
+            json.dump(state, f)
+    except OSError:
+        pass
+
+
+def _load_all_projects() -> None:
+    """Reload projects from disk on startup."""
+    if not os.path.isdir(settings.upload_dir):
+        return
+    for entry in os.listdir(settings.upload_dir):
+        state_file = os.path.join(settings.upload_dir, entry, "state.json")
+        if not os.path.isfile(state_file):
+            continue
+        try:
+            with open(state_file) as f:
+                state = json.load(f)
+            _projects[state["id"]] = {
+                "id": state["id"],
+                "name": state["name"],
+                "description": state.get("description", ""),
+                "source_language": state.get("source_language", "python2"),
+                "target_language": state.get("target_language", "python3"),
+                "status": MigrationStatus(state.get("status", "pending")),
+                "created_at": datetime.fromisoformat(state["created_at"]),
+                "files": state.get("files", {}),
+                "analysis": None,
+                "transformations": {},
+            }
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+
+
+# Load existing projects on module import (survives uvicorn --reload)
+_load_all_projects()
 
 
 def _safe_path(project_id: str, subdirectory: str, file_path: str) -> str:
@@ -72,6 +129,7 @@ def create_project(name: str, description: str, source_lang: str, target_lang: s
         "transformations": {},
     }
     _projects[project_id] = project
+    _save_state(project_id)
     return _project_response(project)
 
 
@@ -109,6 +167,7 @@ def save_file(project_id: str, filename: str, content: bytes) -> dict:
     decoded = content.decode("utf-8", errors="replace")
     lines = decoded.count("\n") + 1 if decoded else 0
     project["files"][safe_name] = {"lines": lines, "migrated": False}
+    _save_state(project_id)
 
     return {"filename": safe_name, "lines": lines}
 
@@ -137,11 +196,23 @@ def analyze_project(project_id: str) -> AnalysisResponse:
     for i, fpath in enumerate(migration_order):
         node = dep_graph.get(fpath)
         risk = next((r for r in risks if r.file_path == fpath), None)
+
+        # Estimate transformations by running deterministic rules against the source
+        est_transforms = 0
+        source_path = os.path.join(source_dir, fpath)
+        if os.path.exists(source_path):
+            try:
+                with open(source_path) as f:
+                    file_source = f.read()
+                est_transforms = len(apply_deterministic_rules(file_source, fpath))
+            except Exception:
+                est_transforms = 0
+
         plan.append(MigrationPlanStep(
             order=i + 1,
             file_path=fpath,
             risk_level=risk.risk_level if risk else RiskLevel.MEDIUM,
-            estimated_transformations=0,
+            estimated_transformations=est_transforms,
             dependencies=[d for d in (node.imports if node else [])],
             blocking=node.imported_by if node else [],
         ))
@@ -164,6 +235,7 @@ def analyze_project(project_id: str) -> AnalysisResponse:
 
     project["analysis"] = analysis
     project["status"] = MigrationStatus.READY
+    _save_state(project_id)
     return analysis
 
 
@@ -234,6 +306,8 @@ async def transform_file(project_id: str, file_path: str) -> FileTransformationR
         if all_migrated and project["files"]:
             project["status"] = MigrationStatus.COMPLETED
 
+        _save_state(project_id)
+
         return FileTransformationResponse(
             project_id=project_id,
             file_path=file_path,
@@ -247,7 +321,47 @@ async def transform_file(project_id: str, file_path: str) -> FileTransformationR
     except Exception:
         # FIX 2: Set FAILED status on error
         project["status"] = MigrationStatus.FAILED
+        _save_state(project_id)
         raise
+
+
+def get_transformations(project_id: str, file_path: str) -> FileTransformationResponse | None:
+    """Return cached transformation results for a file, or None if not yet transformed."""
+    project = _projects.get(project_id)
+    if not project:
+        raise ValueError(f"Project {project_id} not found")
+
+    cached = project.get("transformations", {}).get(file_path)
+    if not cached:
+        return None
+
+    all_transforms = cached["transforms"]
+    all_tests = cached["tests"]
+    scores = [t.confidence_score for t in all_transforms if t.confidence_score > 0]
+    overall_score = sum(scores) / len(scores) if scores else 1.0
+
+    # Read line counts from disk
+    orig_path = _safe_path(project_id, "source", file_path)
+    migrated_path = _safe_path(project_id, "migrated", file_path)
+    orig_lines = 0
+    mig_lines = 0
+    if os.path.exists(orig_path):
+        with open(orig_path) as f:
+            orig_lines = f.read().count("\n") + 1
+    if os.path.exists(migrated_path):
+        with open(migrated_path) as f:
+            mig_lines = f.read().count("\n") + 1
+
+    return FileTransformationResponse(
+        project_id=project_id,
+        file_path=file_path,
+        transformations=all_transforms,
+        snapshot_tests=all_tests,
+        overall_confidence=round(overall_score, 3),
+        overall_tier=_overall_tier(all_transforms),
+        original_lines=orig_lines,
+        transformed_lines=mig_lines,
+    )
 
 
 def get_dashboard(project_id: str) -> DashboardResponse:

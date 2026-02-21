@@ -71,6 +71,11 @@ export const api = {
     }),
 
   // Transformation
+  getTransformations: (projectId: string, filePath: string) =>
+    request<FileTransformationResponse>(
+      `/projects/${projectId}/transform/${filePath}`,
+    ),
+
   transformFile: (projectId: string, filePath: string) =>
     request<FileTransformationResponse>(
       `/projects/${projectId}/transform/${filePath}`,

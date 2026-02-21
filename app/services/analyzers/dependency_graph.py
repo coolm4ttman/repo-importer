@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 from collections import defaultdict, deque
 
 from app.models.schemas import DependencyNode
@@ -24,28 +25,43 @@ def build_dependency_graph(project_dir: str) -> dict[str, DependencyNode]:
     imported_by_map: dict[str, set[str]] = defaultdict(set)
     external_deps: dict[str, set[str]] = defaultdict(set)
 
+    # Regex-based import extraction — works on Python 2 source that ast.parse rejects
+    _import_re = re.compile(r'^\s*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)', re.MULTILINE)
+    _from_re = re.compile(r'^\s*from\s+([\w.]+)\s+import', re.MULTILINE)
+
     for fpath in py_files:
         rel_path = os.path.relpath(fpath, project_dir)
         try:
             with open(fpath) as f:
                 source = f.read()
-            tree = ast.parse(source, filename=fpath)
-        except (SyntaxError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError):
             continue
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    _resolve_import(
-                        alias.name, rel_path, module_map,
-                        imports_map, imported_by_map, external_deps,
-                    )
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    _resolve_import(
-                        node.module, rel_path, module_map,
-                        imports_map, imported_by_map, external_deps,
-                    )
+        # Try AST first (works for valid Python 3), fall back to regex
+        modules: list[str] = []
+        try:
+            tree = ast.parse(source, filename=fpath)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        modules.append(alias.name)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    modules.append(node.module)
+        except SyntaxError:
+            # Python 2 syntax — extract imports via regex
+            for m in _import_re.finditer(source):
+                for mod in m.group(1).split(","):
+                    mod = mod.strip()
+                    if mod:
+                        modules.append(mod)
+            for m in _from_re.finditer(source):
+                modules.append(m.group(1))
+
+        for mod in modules:
+            _resolve_import(
+                mod, rel_path, module_map,
+                imports_map, imported_by_map, external_deps,
+            )
 
     # Compute topological migration order (leaves first)
     all_files = {os.path.relpath(f, project_dir) for f in py_files}

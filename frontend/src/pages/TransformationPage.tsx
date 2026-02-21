@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   ChevronRight,
   Check,
+  CheckCircle2,
   X,
   ChevronDown,
   ChevronUp,
@@ -195,8 +196,8 @@ function TransformationCard({
       className={cn(
         "cursor-pointer transition-all",
         isActive && "ring-2 ring-primary/50",
-        status === "approved" && "border-green-500/30 bg-green-500/5",
-        status === "rejected" && "border-red-500/30 bg-red-500/5 opacity-60",
+        status === "approved" && "border-green-500/50 bg-green-500/15 shadow-[inset_0_0_0_1px_rgba(34,197,94,0.2)]",
+        status === "rejected" && "border-red-500/50 bg-red-500/15 opacity-60",
       )}
       onClick={onClick}
     >
@@ -292,11 +293,30 @@ function TransformationCard({
 
 function SnapshotTestsPanel({
   tests,
+  filePath,
 }: {
   tests: FileTransformationResponse["snapshot_tests"];
+  filePath: string;
 }) {
   const [open, setOpen] = useState(false);
   if (tests.length === 0) return null;
+
+  const downloadTests = () => {
+    const combined = tests.map((t) => t.test_code).join("\n\n\n");
+    const baseName = filePath.replace(/\.py$/, "");
+    const blob = new Blob([combined], { type: "text/x-python" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `test_${baseName}.py`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const copyAllTests = () => {
+    const combined = tests.map((t) => t.test_code).join("\n\n\n");
+    navigator.clipboard.writeText(combined);
+  };
 
   return (
     <Card>
@@ -309,11 +329,39 @@ function SnapshotTestsPanel({
             <Eye className="size-4" />
             Snapshot Tests ({tests.length})
           </CardTitle>
-          {open ? (
-            <ChevronUp className="size-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="size-4 text-muted-foreground" />
-          )}
+          <div className="flex items-center gap-2">
+            {open && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyAllTests();
+                  }}
+                >
+                  Copy All
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    downloadTests();
+                  }}
+                >
+                  Download .py
+                </Button>
+              </>
+            )}
+            {open ? (
+              <ChevronUp className="size-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="size-4 text-muted-foreground" />
+            )}
+          </div>
         </div>
       </CardHeader>
       {open && (
@@ -371,11 +419,22 @@ export function TransformationPage() {
   const [viewMode, setViewMode] = useState<"split" | "diff">("split");
   const queryClient = useQueryClient();
 
+  // Load cached transformation results (if file was already transformed)
+  const { data: cachedTransformData } = useQuery({
+    queryKey: ["transformations", id, filePath],
+    queryFn: () => api.getTransformations(id, filePath),
+    enabled: !!filePath,
+    retry: false,
+  });
+
   // CRITICAL 2: Use useMutation for the POST transform endpoint
   const transformMutation = useMutation({
     mutationFn: () => api.transformFile(id, filePath),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["transformations", id, filePath] });
+      queryClient.invalidateQueries({ queryKey: ["file-content", id, filePath, "migrated"] });
+      queryClient.invalidateQueries({ queryKey: ["file-diff", id, filePath] });
     },
   });
 
@@ -386,21 +445,25 @@ export function TransformationPage() {
     enabled: !!filePath,
   });
 
-  // Only fetch migrated content after transform succeeds
+  // Fetch migrated content: try immediately (file may already be migrated)
+  // and also refetch after a new transform succeeds
   const { data: migratedData } = useQuery({
     queryKey: ["file-content", id, filePath, "migrated"],
     queryFn: () => api.getFileContent(id, filePath, "migrated"),
-    enabled: transformMutation.isSuccess,
+    enabled: !!filePath,
+    retry: false,
   });
 
-  // Fetch unified diff (only after transformation completes)
+  // Fetch unified diff: try immediately and also refetch after transform
   const { data: diffData } = useQuery({
     queryKey: ["file-diff", id, filePath],
     queryFn: () => api.getFileDiff(id, filePath),
-    enabled: transformMutation.isSuccess,
+    enabled: !!filePath,
+    retry: false,
   });
 
-  const transformData = transformMutation.data;
+  // Use mutation result if available, otherwise fall back to cached data
+  const transformData = transformMutation.data ?? cachedTransformData;
   const transformations = transformData?.transformations ?? [];
 
   // Build line highlights
@@ -728,11 +791,26 @@ export function TransformationPage() {
         </div>
       )}
 
+      {/* ---- All-approved banner ---- */}
+      {transformations.length > 0 && approvedCount === transformations.length && (
+        <div className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+          <CheckCircle2 className="size-5 text-green-400 shrink-0" />
+          <span className="text-sm font-medium text-green-400">
+            All {approvedCount} transformations approved — migrated file is ready.
+          </span>
+        </div>
+      )}
+
       {/* ---- Transformation List (only after transform) ---- */}
       {transformData && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold tracking-tight">
             Transformations ({transformations.length})
+            {approvedCount > 0 && (
+              <span className="ml-2 text-sm font-normal text-green-400">
+                {approvedCount}/{transformations.length} approved
+              </span>
+            )}
           </h2>
           <div className="grid gap-3">
             {transformations.map((t) => (
@@ -752,7 +830,7 @@ export function TransformationPage() {
 
       {/* ---- Snapshot Tests ---- */}
       {transformData && (
-        <SnapshotTestsPanel tests={transformData.snapshot_tests} />
+        <SnapshotTestsPanel tests={transformData.snapshot_tests} filePath={filePath} />
       )}
     </div>
   );

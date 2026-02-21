@@ -9,9 +9,25 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 from collections import defaultdict
 
 from app.models.schemas import DeadCodeItem
+
+# Minimal regex fixups to make Python 2 source parseable by Python 3's ast
+_PY2_FIXUPS = [
+    (re.compile(r'\bprint\s*>>\s*[\w.]+\s*,\s*(.*)$', re.MULTILINE), r'print(\1)'),
+    (re.compile(r'\bprint\s+([^(].*?)$', re.MULTILINE), r'print(\1)'),
+    (re.compile(r'\braise\s+(\w+)\s*,\s*(.*?)$', re.MULTILINE), r'raise \1(\2)'),
+    (re.compile(r'\bexcept\s+(\w+)\s*,\s*(\w+)\s*:', re.MULTILINE), r'except \1 as \2:'),
+]
+
+
+def _make_parseable(source: str) -> str:
+    """Apply minimal fixups so Python 2 source can be parsed by ast.parse."""
+    for pattern, replacement in _PY2_FIXUPS:
+        source = pattern.sub(replacement, source)
+    return source
 
 
 def detect_dead_code(project_dir: str) -> list[DeadCodeItem]:
@@ -28,7 +44,11 @@ def detect_dead_code(project_dir: str) -> list[DeadCodeItem]:
         try:
             with open(fpath) as f:
                 source = f.read()
-            tree = ast.parse(source, filename=fpath)
+            try:
+                tree = ast.parse(source, filename=fpath)
+            except SyntaxError:
+                # Python 2 syntax — apply minimal fixups and retry
+                tree = ast.parse(_make_parseable(source), filename=fpath)
         except (SyntaxError, UnicodeDecodeError):
             continue
 

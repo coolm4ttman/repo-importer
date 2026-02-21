@@ -24,6 +24,7 @@ from app.services.project_manager import (
     get_file_content,
     get_file_diff,
     get_project,
+    get_transformations,
     list_files,
     list_projects,
     save_file,
@@ -114,6 +115,18 @@ async def run_analysis(project_id: str):
 
 
 # ── Transformation ───────────────────────────────────────────────────────
+
+
+@router.get("/projects/{project_id}/transform/{file_path:path}", response_model=FileTransformationResponse)
+async def get_cached_transform(project_id: str, file_path: str):
+    """Get cached transformation results for an already-transformed file."""
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    result = get_transformations(project_id, file_path)
+    if not result:
+        raise HTTPException(404, "File has not been transformed yet")
+    return result
 
 
 @router.post("/projects/{project_id}/transform/{file_path:path}", response_model=FileTransformationResponse)
